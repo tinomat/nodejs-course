@@ -7,8 +7,20 @@ const app = express(); // <- creamos app
 app.use(express.json()); // <- middleware para capturar request y mutar el body del post, para poder acceder al req.body
 app.disable("x-powered-by"); // <- eliminamos cabecera de express, por seguridad
 
+const ACCEPTED_ORIGINS = [
+    "http://localhost:8080",
+    "http://movies.com", // <- url de produccion
+];
+
 // Todos los recursos que sean MOVIES se identifica con /movies
 app.get("/movies", (req, res) => {
+    // accedemos al origin de la cabecera, esta no se envía cuando la peticion es desde la misma url
+    const origin = req.header("origin");
+    // si el origen desde el que se intenta entrar esta en nuestra lista de aceptados o no existe un origen
+    if (ACCEPTED_ORIGINS.includes(origin) || !origin) {
+        res.header("Access-Control-Allow-Origin", origin);
+    }
+
     const { genre } = req.query; // <- accedemos al query request de la url (?genre=Action)
 
     if (genre) {
@@ -25,7 +37,6 @@ app.get("/movies", (req, res) => {
             res.status(404).send("404 not found");
         }
     } else {
-        res.header("Access-Control-Allow-Origin", "*");
         return res.json(movies);
     }
 });
@@ -50,6 +61,37 @@ app.post("/movies", (req, res) => {
     movies.push(newMovie); //<- añadimos la nueva pelicula al json de peliculas
 
     res.status(201).json(newMovie); // <- actualizar caché del cliente, evitando crear una nueva request
+});
+
+app.options("/movies/:id", (req, res) => {
+    const origin = req.header("origin");
+    if (ACCEPTED_ORIGINS.includes(origin) || !origin) {
+        res.header("Access-Control-Allow-Origin", origin);
+        // Cabecera para permitir los diferentes metodos
+        res.header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, PATCH, DELETE"
+        );
+    }
+    res.send("200");
+});
+
+app.delete("/movies/:id", (req, res) => {
+    const origin = req.header("origin");
+    if (ACCEPTED_ORIGINS.includes(origin) || !origin) {
+        res.header("Access-Control-Allow-Origin", origin);
+        // Cabecera para permitir los diferentes metodos
+    }
+    const id = req.params.id;
+
+    const movieIndex = movies.findIndex((movie) => movie.id === id);
+    if (movieIndex === -1) {
+        return res.status(404).send("404 not found");
+    }
+
+    // Removemos del array la pelicula. Eliminamos desde el indice de la pelicula un elemento
+    movies.splice(movieIndex, 1);
+    return res.json({ msg: "Movie deleted" });
 });
 
 // Obtener pelicula por id, le decimos que en el link vamos a pasar un id con :id
